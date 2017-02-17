@@ -48,7 +48,7 @@ init([Plane]) ->
     %% ------------ %%
     %%
     %% Code to fill in %%
-    {ok, state_to_fill_in, Plane}.
+    {ok, in_air, Plane}.
     %% ------------ %%
 
 in_air(permission_to_land, Plane) ->
@@ -63,7 +63,15 @@ in_air(permission_to_land, Plane) ->
     CT = Plane#plane.control_tower_pid,
     Result = control_tower:permission_to_land(CT, Plane),
     io:format("[PLANE] Plane ~s asks tower ~p for permission to land. Got response ~p ~n", [Plane#plane.flight_number, CT, Result]),
-    {next_state, in_air, Plane};
+
+    case Result of
+      cannot_land ->
+        io:format("[Plane] can't land now ~p ~n", [Plane]),
+        {next_state, in_air, Plane};
+      LandingStrip ->
+        io:format("[Plane] got permission to land ~p ~n", [Plane]),
+        {next_state, prepare_for_landing, Plane#plane{landing_strip = LandingStrip}}
+    end;
     %% ------------ %%
 
 % Redirect all unexpected calls to in_air events
@@ -71,7 +79,10 @@ in_air(Event, Data) ->
     unexpected(Event, in_air),
     {next_state, in_air, Data}.
 
-prepare_for_landing(land, Plane) ->
+prepare_for_landing(land, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
+    ok = control_tower:land_plane(CT, Plane, LandingStrip),
+    {next_state, landed, Plane}.
+
     %% Instructions %%
     %%
     %%  - Call the control tower to land the plane on the assigned landing strip
@@ -79,7 +90,7 @@ prepare_for_landing(land, Plane) ->
     %% ------------ %%
     %%
     %% Code to fill in %%
-    {next_state, landed, Plane}.
+
     %% ------------ %%
 
 %% Instructions %%
@@ -92,6 +103,9 @@ prepare_for_landing(land, Plane) ->
 %% ....
 %% ------------ %%
 
+terminate(normal, landed, Plane) ->
+    io:format("[Plane] ~p finished up their shift, resting in the hangar~n", [Plane]),
+    ok;
 terminate(_Reason, _StateName, _StateData) ->
     ok.
 
@@ -129,4 +143,3 @@ generate_flight_number() ->
 create_plane(ControlTowerPid) ->
     FlightNumber = generate_flight_number(),
     #plane{flight_number=FlightNumber, control_tower_pid=ControlTowerPid}.
-
