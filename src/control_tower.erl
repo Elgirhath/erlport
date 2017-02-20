@@ -124,28 +124,23 @@ land_plane(Pid, Plane = #plane{}, LandingStrip = #landing_strip{}) ->
 
 %%%%% Gen server callbacks %%%%%
 
-init([]) -> {ok, closed}. %% no treatment of info here!
+init([]) -> {ok, #{}}. %% no treatment of info here!
 
 %% Unexpected message
-handle_info(Msg, LandingStrip) ->
+handle_info(Msg, LandingStrips) ->
     io:format("[TOWER] Unexpected message: ~p~n",[Msg]),
-    {noreply, LandingStrip}.
+    {noreply, LandingStrips}.
 
 %% Close landing strip
-handle_cast({close_landing_strip, _LS}, LandingStrip=#landing_strip{free=true}) ->
-    io:format("[TOWER] Closing landing strip ~p~n", [LandingStrip]),
-    {noreply, closed};
+handle_cast({close_landing_strip, LS}, LandingStrips) ->
 
-handle_cast({close_landing_strip, _LS}, LandingStrip=#landing_strip{free=false}) ->
-    io:format("[TOWER] Landing strip ~p occupied, reschedule close~n", [LandingStrip]),
-    timer:sleep(100),
-    gen_server:cast(self(), {close_landing_strip, LandingStrip}),
-    {noreply, LandingStrip};
+    LS0 = maps:get(LS#landing_strip.id, LandingStrips, null),
+    can_close_landing_strip(LS0);
 
 %% Landing a plane
 %%
 %% TODO
-handle_cast({make_landing, Plane, _LS, From}, LandingStrip) ->
+handle_cast({make_landing, #plane{flight_number = FlightNumber}, LS = #landing_strip{id=LSId}, From}, LandingStrips) ->
     %% Instructions %%
     %%
     %%  When we're making a landing, we need to do the following:
@@ -158,17 +153,21 @@ handle_cast({make_landing, Plane, _LS, From}, LandingStrip) ->
     %%
     %% Code to fill in %%
     %%
+    %%
     timer:sleep(3000),
-    io:format("[TOWER] Plane ~p landed, freeing up runway ~p ~n", [Plane#plane.flight_number, LandingStrip#landing_strip.id]),
-    LandingStripFreed = LandingStrip#landing_strip{free=true},
-    {PlanePid, _} = From,
-    plane:rest(PlanePid),
-    {noreply, LandingStripFreed}.
+    io:format("[TOWER] Plane ~p landed, freeing up runway ~p ~n", [FlightNumber, LSId]),
+    LandingStripFreed = LS#landing_strip{free = true},
+
+    {PlanePID, _} = From,
+    plane:rest(PlanePID),
+
+    {noreply, maps:put(LSId, LandingStripFreed, LandingStrips)}.
     %% ------------ %%
 
 
+
 %% Approach the runway
-handle_call({land_plane, Plane, _LS}, From, LandingStrip) ->
+handle_call({land_plane, Plane, LS}, From, LandingStrips) ->
     %% Instructions %%
     %%
     %%  When we're starting to land a plane, we need to do:
@@ -178,17 +177,17 @@ handle_call({land_plane, Plane, _LS}, From, LandingStrip) ->
     %%
     %% ------------ %%
     % Mark the landing strip as occupied
-    io:format("[TOWER] Plane ~p approaching runway ~p ~n", [Plane, LandingStrip]),
-    gen_server:cast(self(), {make_landing, Plane, LandingStrip, From}),
+    io:format("[TOWER] Plane ~p approaching runway ~p ~n", [Plane, LS]),
+    gen_server:cast(self(), {make_landing, Plane, LS, From}),
 
-    {reply, ok, LandingStrip};
+    {reply, ok, LandingStrips};
     %% ------------ %%
 
 %% Open a new landing strip, available for planes to land on
-handle_call(open_landing_strip, _From, closed) ->
+handle_call(open_landing_strip, _From, LandingStrips) ->
     NewLS = create_landing_strip(),
     io:format("[TOWER] Opening new landing strip ~p~n", [NewLS]),
-    {reply, NewLS, NewLS};
+    {reply, NewLS, maps:put(NewLS#landing_strip.id, NewLS, LandingStrips)};
 
 %% Check if the plane can land, look for free landing strips
 %% Instructions %%
@@ -201,23 +200,26 @@ handle_call(open_landing_strip, _From, closed) ->
 %%      a cannot_land message so the plane can retry later
 %%
 %% ------------ %%
-handle_call({permission_to_land, Plane = #plane{}}, _From, LandingStrip=#landing_strip{free=true}) ->
-    LandingStripOccupied = LandingStrip#landing_strip{free=false},
-    {reply, LandingStrip, LandingStripOccupied};
+handle_call({permission_to_land, Plane = #plane{}}, _From, LandingStrips) ->
+  FreeLSMap = maps:filter(fun(_K, LS) -> LS#landing_strip.free =:= true end, LandingStrips),
+  case maps:size(FreeLSMap) of
+    0 ->
+      io:format("[TOWER] Plane ~p asked for permission to land, all landing strips occupied ~n", [Plane]),
+      {reply, cannot_land, LandingStrips};
+    _ ->
+      LSChosen = hd(maps:values(FreeLSMap)),
+      LSOccupied = LSChosen#landing_strip{free = false},
+      {reply, LSOccupied, maps:put(LSOccupied#landing_strip.id, LSOccupied, LandingStrips)}
+  end;
 
-handle_call({permission_to_land, Plane = #plane{}}, _From, LandingStrip=#landing_strip{free=false}) ->
-    io:format("[Tower] Plane ~p asked for landing - landing strip occupied", [Plane]),
-    {reply, cannot_land, LandingStrip};
-
-%% ------------ %%
 
 %% Close the airport
-handle_call(terminate, _From, LandingStrip) ->
-    {stop, normal, ok, LandingStrip}.
+handle_call(terminate, _From, LandingStrips) ->
+    {stop, normal, ok, LandingStrips}.
 
 %% Free up all the landing strips
-terminate(normal, LandingStrip) ->
-    io:format("[TOWER] Landing Strip ~p was freed up.~n",[LandingStrip]),
+terminate(normal, LandingStrips) ->
+    io:format("[TOWER] Landing Strips ~p was freed up.~n",[LandingStrips]),
     ok.
 
 %% Code upgrade
@@ -229,3 +231,15 @@ code_change(_OldVsn, State, _Extra) ->
 %% Private functions
 create_landing_strip() ->
     #landing_strip{id = random:uniform(1000000)}.
+
+can_close_landing_strip(null) ->
+    io:format("[TOWER] Landing strip not found ~n", []),
+    {noreply, {}};
+can_close_landing_strip(LandingStrip = #landing_strip{free=false}) ->
+    io:format("[TOWER] Landing strip ~p occupied, reschedule close~n", [LandingStrip]),
+    timer:sleep(100),
+    gen_server:cast(self(), {close_landing_strip, LandingStrip}),
+    {noreply, LandingStrip};
+can_close_landing_strip(LandingStrip = #landing_strip{free=true}) ->
+    io:format("[TOWER] Closing landing strip ~p~n", [LandingStrip]),
+    {noreply,{}}.
