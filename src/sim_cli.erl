@@ -17,7 +17,7 @@ update(Tower, Planes, Lanes) ->
     NewPlanes = update_plane_list(Planes, Tower, SpawnRate * SleepSeconds),
     {NewestPlanes, NewLanes} = process_input(NewPlanes, Lanes, Tower),
 
-    land_planes(Planes),
+    ok = land_planes(Planes),
 
     repaint(NewestPlanes, NewLanes),
     timer:sleep(round(1000 * SleepSeconds)),
@@ -26,13 +26,16 @@ update(Tower, Planes, Lanes) ->
 land_planes([]) -> ok;
 land_planes([Plane1 | Tail]) ->
     % Get the planes to land
-    plane:permission_to_land(Plane1),
     case plane:get_state(Plane1) of
         prepare_for_landing ->
             %% if we got permission to land -> land the plane
+            timer:sleep(2000),
             plane:land(Plane1),
             land_planes(Tail);
-        _Else -> 1
+        in_air ->
+            plane:permission_to_land(Plane1),
+            timer:sleep(2000),
+            land_planes(Tail)
     end.
 
 update_plane_list(Planes, Tower, SpawnProbability) ->
