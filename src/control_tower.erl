@@ -9,13 +9,14 @@
          permission_to_land/2,
          permission_to_start/2,
          land_plane/3,
+         takeoff/3,
          close_airport/1
         ]).
 % callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
                   terminate/2, code_change/3]).
 % test
--export([test_planes/0, test_tower_setup/0, test_single_plane/0, test_single_plane_landing/0]).
+-export([test_planes/0, test_tower_setup/0, test_single_plane/0, test_single_plane_landing_and_takeoff/0]).
 
 -include_lib("../include/airport.hrl").
 -define(PLANE_MODULE, plane).
@@ -48,7 +49,7 @@ test_single_plane() ->
 %%
 %% Test if we can start up a tower and spawn a plane with it as well as attempting to land it
 %%
-test_single_plane_landing() ->
+test_single_plane_landing_and_takeoff() ->
     {ok, CT} = control_tower:start_link(),
     LS1 = control_tower:open_landing_strip(CT),
     io:format("Control Tower: ~p | Landing Strip: ~p", [CT, LS1]),
@@ -56,6 +57,11 @@ test_single_plane_landing() ->
     io:format("~n -- plane: ~p~n", [Plane]),
     ?PLANE_MODULE:permission_to_land(Plane),
     ?PLANE_MODULE:land(Plane),
+
+    timer:sleep(1000),
+
+    ?PLANE_MODULE:permission_to_start(Plane),
+    ?PLANE_MODULE:fly(Plane),
 
     timer:sleep(1000),
 %%    control_tower:close_airport(CT),

@@ -44,7 +44,7 @@ fly(PlanePid) ->
   gen_fsm:send_event(PlanePid,fly).
 
 rest(PlanePid) ->
-    gen_fsm:send_event(PlanePid, other).
+    gen_fsm:send_event(PlanePid, grounded).
 
 get_state(PlanePid) ->
     gen_fsm:sync_send_all_state_event(PlanePid, get_state).
@@ -60,6 +60,11 @@ init([Plane]) ->
     %% Code to fill in %%
     {ok, in_air, Plane}.
     %% ------------ %%
+in_air(grounded, Plane) ->
+  {next_state, in_air, Plane#plane{landing_strip = 0}};
+
+in_air(fly, Plane) ->
+  {next_state, in_air, Plane#plane{landing_strip = 0}};
 
 in_air(permission_to_land, Plane) ->
     %% Instructions %%
@@ -93,7 +98,6 @@ on_the_ground(other, Plane) ->
   {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
 
 on_the_ground(permission_to_start, Plane) ->
-  io:format("AAA ~n"),
   CT = Plane#plane.control_tower_pid,
   Result = control_tower:permission_to_start(CT,Plane),
   io:format("[PLANE] Plane ~s asks tower ~p for permission to start. Got response ~p ~n",[Plane#plane.flight_number, CT,Result]),
