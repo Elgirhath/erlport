@@ -24,17 +24,18 @@ update(Tower, Planes, Lanes) ->
     update(Tower, NewestPlanes, NewLanes).
 
 land_planes([]) -> ok;
-land_planes([Plane1 | Tail]) ->
+land_planes([PlaneWrapper | Tail]) ->
     % Get the planes to land
-    case plane:get_state(Plane1) of
+    {Pid, _} = PlaneWrapper,
+    case plane:get_state(Pid) of
         prepare_for_landing ->
             %% if we got permission to land -> land the plane
-            timer:sleep(2000),
-            plane:land(Plane1),
+            timer:sleep(5000),
+            plane:land(Pid),
             land_planes(Tail);
         in_air ->
-            plane:permission_to_land(Plane1),
-            timer:sleep(2000),
+            plane:permission_to_land(Pid),
+            timer:sleep(5000),
             land_planes(Tail)
     end.
 
@@ -42,8 +43,8 @@ update_plane_list(Planes, Tower, SpawnProbability) ->
     Rand = random:uniform(),
     if 
         Rand < SpawnProbability ->
-            {ok, PlaneId} = plane:start(Tower),
-            Planes ++ [PlaneId];
+            Plane = plane:start_and_get(Tower),
+            Planes ++ [Plane];
         true ->
             Planes
     end.
@@ -67,12 +68,16 @@ process_commands([Command | Tail], Planes, Lanes, Tower) ->
 
 
 repaint(Planes, Lanes) ->
-    PlaneStrings = lists:map(fun(Plane) ->
-        pid_to_list(Plane) end,
+    PlaneStrings = lists:map(fun(PlaneWrapper) ->
+        {_, Plane} = PlaneWrapper,
+        FlightNumber = Plane#plane.flight_number,
+        log(FlightNumber),
+        FlightNumber end,
         Planes
     ),
-    PlaneStateStrings = lists:map(fun(Plane) ->
-        plane:get_state(Plane) end,
+    PlaneStateStrings = lists:map(fun(PlaneWrapper) ->
+        {Pid, _} = PlaneWrapper,
+        plane:get_state(Pid) end,
         Planes
     ),
     LaneStrings = lists:map(fun(Lane) ->
