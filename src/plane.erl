@@ -15,7 +15,8 @@
          on_the_ground/2,
          rest/1,
          get_state/1,
-         generate_flight_number/0
+         generate_flight_number/0,
+         create_plane/1
         ]).
 % callbacks
 -export([ init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
@@ -25,7 +26,10 @@
 % Start / Create planes
 start(ControlTowerPid) ->
     Plane = create_plane(ControlTowerPid),
-    gen_fsm:start(?MODULE, [Plane], []).
+    gen_fsm:start(?MODULE, [Plane], []);
+
+start(Plane) ->
+  gen_fsm:start(?MODULE, [Plane], []).
 
 start_link(ControlTowerPid) ->
     Plane = create_plane(ControlTowerPid),
