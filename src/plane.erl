@@ -6,9 +6,13 @@
          start/1,
          start_link/1,
          permission_to_land/1,
+         permission_to_start/1,
          land/1,
+         fly/1,
          prepare_for_landing/2,
+         prepare_for_takeoff/2,
          in_air/2,
+         on_the_ground/2,
          rest/1,
          get_state/1,
          generate_flight_number/0
@@ -16,7 +20,7 @@
 % callbacks
 -export([ init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--include_lib("include/airport.hrl").
+-include_lib("../include/airport.hrl").
 
 % Start / Create planes
 start(ControlTowerPid) ->
@@ -30,11 +34,17 @@ start_link(ControlTowerPid) ->
 permission_to_land(PlanePid) ->
     gen_fsm:send_event(PlanePid, permission_to_land).
 
+permission_to_start(PlanePid) ->
+  gen_fsm:send_event(PlanePid, permission_to_start).
+
 land(PlanePid) ->
     gen_fsm:send_event(PlanePid, land).
 
+fly(PlanePid) ->
+  gen_fsm:send_event(PlanePid,fly).
+
 rest(PlanePid) ->
-    gen_fsm:send_all_state_event(PlanePid, shutdown).
+    gen_fsm:send_event(PlanePid, other).
 
 get_state(PlanePid) ->
     gen_fsm:sync_send_all_state_event(PlanePid, get_state).
@@ -59,7 +69,6 @@ in_air(permission_to_land, Plane) ->
     %%  - if we did not get the permission -> stay in_air
     %% ------------ %%
     %%
-    %% Code to fill in %%
     CT = Plane#plane.control_tower_pid,
     Result = control_tower:permission_to_land(CT, Plane),
     io:format("[PLANE] Plane ~s asks tower ~p for permission to land. Got response ~p ~n", [Plane#plane.flight_number, CT, Result]),
@@ -79,29 +88,32 @@ in_air(Event, Data) ->
     unexpected(Event, in_air),
     {next_state, in_air, Data}.
 
+
+on_the_ground(other, Plane) ->
+  {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
+
+on_the_ground(permission_to_start, Plane) ->
+  io:format("AAA ~n"),
+  CT = Plane#plane.control_tower_pid,
+  Result = control_tower:permission_to_start(CT,Plane),
+  io:format("[PLANE] Plane ~s asks tower ~p for permission to start. Got response ~p ~n",[Plane#plane.flight_number, CT,Result]),
+
+  case Result of
+    cannot_start ->
+      io:format("[Plane] can't start now ~p ~n",[Plane]),
+      {next_state, on_the_ground, Plane};
+    LandingStrip ->
+      io:format("[Plane] got permission to start ~p ~n", [Plane]),
+      {next_state, prepare_for_takeoff, Plane#plane{landing_strip = LandingStrip}}
+  end.
+
 prepare_for_landing(land, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
     ok = control_tower:land_plane(CT, Plane, LandingStrip),
-    {next_state, landed, Plane}.
+    {next_state, on_the_ground, Plane}.
 
-    %% Instructions %%
-    %%
-    %%  - Call the control tower to land the plane on the assigned landing strip
-    %%  - Transition to state landed when finished
-    %% ------------ %%
-    %%
-    %% Code to fill in %%
-
-    %% ------------ %%
-
-%% Instructions %%
-%%
-%%  - Once the plane landed, we just allow it to terminate with a simple log message
-%% ------------ %%
-%%
-%% Code to fill in %%
-%% terminate(normal, landed, S=#plane{}) ->
-%% ....
-%% ------------ %%
+prepare_for_takeoff(fly, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
+  ok = control_tower:takeoff(CT,Plane,LandingStrip),
+  {next_state, in_air, Plane}.
 
 terminate(normal, landed, Plane) ->
     io:format("[Plane] ~p finished up their shift, resting in the hangar~n", [Plane]),
@@ -119,6 +131,8 @@ handle_info(Info, StateName, Data) ->
     {next_state, StateName, Data}.
 handle_event(shutdown, _StateName, State) ->
     {stop, normal, State};
+handle_event(on_the_ground, _StateName, State) ->
+  {next_state, on_the_ground, State};
 handle_event(Event, StateName, State) ->
     io:format("Plane receives an unknown global event: ~p ~n", [Event]),
     {next_state, StateName, State}.

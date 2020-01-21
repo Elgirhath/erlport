@@ -7,6 +7,7 @@
          open_landing_strip/1,
          close_landing_strip/2,
          permission_to_land/2,
+         permission_to_start/2,
          land_plane/3,
          close_airport/1
         ]).
@@ -16,7 +17,7 @@
 % test
 -export([test_planes/0, test_tower_setup/0, test_single_plane/0, test_single_plane_landing/0]).
 
--include_lib("include/airport.hrl").
+-include_lib("../include/airport.hrl").
 -define(PLANE_MODULE, plane).
 
 
@@ -57,7 +58,7 @@ test_single_plane_landing() ->
     ?PLANE_MODULE:land(Plane),
 
     timer:sleep(1000),
-    control_tower:close_airport(CT),
+%%    control_tower:close_airport(CT),
     ok.
 
 %% This is where we spawn 10 planes, setup a control tower and then attempt to land them all
@@ -113,14 +114,24 @@ close_landing_strip(Pid, LandingStrip = #landing_strip{}) ->
 %% Synchronous call
 close_airport(Pid) ->
     gen_server:call(Pid, terminate).
-
+%% Synchronous call
+permission_to_start(Pid, Plane = #plane{}) ->
+    gen_server:call(Pid,{permission_to_start, Plane}).
 %% Synchronous call
 permission_to_land(Pid, Plane = #plane{}) ->
     gen_server:call(Pid, {permission_to_land, Plane}).
 
+on_the_ground(Pid, Plane = #plane{}) ->
+    io:format("ABBASDA"),
+    gen_server:call(Pid, {on_the_ground, Plane}).
+
 %% Asynchronous call
 land_plane(Pid, Plane = #plane{}, LandingStrip = #landing_strip{}) ->
     gen_server:call(Pid, {land_plane, Plane, LandingStrip}).
+
+%% Asynchronous call
+takeoff(Pid, Plane = #plane{}, LandingStrip = #landing_strip{}) ->
+    gen_server:call(Pid, {takeoff, Plane, LandingStrip}).
 
 %%%%% Gen server callbacks %%%%%
 
@@ -161,10 +172,18 @@ handle_cast({make_landing, #plane{flight_number = FlightNumber}, LS = #landing_s
     {PlanePID, _} = From,
     plane:rest(PlanePID),
 
-    {noreply, maps:put(LSId, LandingStripFreed, LandingStrips)}.
+    {noreply, maps:put(LSId, LandingStripFreed, LandingStrips)};
     %% ------------ %%
 
+handle_cast({make_takeoff, #plane{flight_number = FlightNumber}, LS = #landing_strip{id=LSid}, From}, LandingStrips) ->
+    timer:sleep(3000),
+    io:format("[TOWER]) Plane ~p took off, runway ~p is free ~n", [FlightNumber,LSid]),
+    LandingStripFreed = LS#landing_strip{free = true},
 
+    {PlanePID,_} = From,
+    plane:fly(PlanePID),
+
+    {noreply,maps:put(LSid, LandingStripFreed, LandingStrips)}.
 
 %% Approach the runway
 handle_call({land_plane, Plane, LS}, From, LandingStrips) ->
@@ -182,6 +201,12 @@ handle_call({land_plane, Plane, LS}, From, LandingStrips) ->
 
     {reply, ok, LandingStrips};
     %% ------------ %%
+
+handle_call({takeoff, Plane, LS}, From, LandingStrips) ->
+    io:format("[TOWER] Plane ~p taking position on runway ~p ~n", [Plane, LS]),
+    gen_server:cast(self(), {make_takeoff, Plane, LS, From}),
+
+    {reply, ok, LandingStrips};
 
 %% Open a new landing strip, available for planes to land on
 handle_call(open_landing_strip, _From, LandingStrips) ->
@@ -211,6 +236,18 @@ handle_call({permission_to_land, Plane = #plane{}}, _From, LandingStrips) ->
       LSOccupied = LSChosen#landing_strip{free = false},
       {reply, LSOccupied, maps:put(LSOccupied#landing_strip.id, LSOccupied, LandingStrips)}
   end;
+
+handle_call({permission_to_start, Plane = #plane{}}, _From, LandingStrips)  ->
+    FreeLSMap = maps:filter(fun(_K, LS) -> LS#landing_strip.free =:= true end, LandingStrips),
+    case maps:size(FreeLSMap) of
+        0 ->
+            io:format("[TOWER] Plane ~p asked for permission to start, all runways occupied ~n", [Plane]),
+            {reply, cannot_start, LandingStrips};
+        _ ->
+            LSChosen = hd(maps:values(FreeLSMap)),
+            LSOccupied = LSChosen#landing_strip{free = false},
+            {reply, LSOccupied, maps:put(LSOccupied#landing_strip.id, LSOccupied, LandingStrips)}
+    end;
 
 
 %% Close the airport
