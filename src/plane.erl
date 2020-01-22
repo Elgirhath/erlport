@@ -105,7 +105,10 @@ in_air(Event, Data) ->
 
 prepare_for_landing(land, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
     ok = control_tower:land_plane(CT, Plane, LandingStrip),
-    {next_state, on_the_ground, Plane}.
+    {next_state, on_the_ground, Plane};
+prepare_for_landing(fly, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
+  ok = control_tower:land_plane(CT, Plane, LandingStrip),
+  {next_state, on_the_ground, Plane}.
 
 on_the_ground(grounded, Plane) ->
   {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
@@ -130,27 +133,11 @@ on_the_ground(permission_to_start, Plane) ->
 
 prepare_for_takeoff(fly, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
   ok = control_tower:takeoff(CT,Plane,LandingStrip),
+  {next_state, in_air, Plane};
+
+prepare_for_takeoff(grounded, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
+  ok = control_tower:takeoff(CT,Plane,LandingStrip),
   {next_state, in_air, Plane}.
-
-    %% Instructions %%
-    %%
-    %%  - Call the control tower to land the plane on the assigned landing strip
-    %%  - Transition to state landed when finished
-    %% ------------ %%
-    %%
-    %% Code to fill in %%
-
-    %% ------------ %%
-
-%% Instructions %%
-%%
-%%  - Once the plane landed, we just allow it to terminate with a simple log message
-%% ------------ %%
-%%
-%% Code to fill in %%
-%% terminate(normal, landed, S=#plane{}) ->
-%% ....
-%% ------------ %%
 
 terminate(normal, landed, Plane) ->
     io:format("[Plane] ~p finished up their shift, resting in the hangar~n", [Plane]),
