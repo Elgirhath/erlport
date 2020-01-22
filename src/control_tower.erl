@@ -18,7 +18,7 @@
 % test
 -export([test_planes/0, test_tower_setup/0, test_single_plane/0, test_single_plane_landing_and_takeoff/0]).
 
--include_lib("../include/airport.hrl").
+-include_lib("include/airport.hrl").
 -define(PLANE_MODULE, plane).
 
 
@@ -59,12 +59,10 @@ test_single_plane_landing_and_takeoff() ->
     ?PLANE_MODULE:land(Plane),
 
     timer:sleep(1000),
-
     ?PLANE_MODULE:permission_to_start(Plane),
     ?PLANE_MODULE:fly(Plane),
 
-    timer:sleep(1000),
-%%    control_tower:close_airport(CT),
+   %% control_tower:close_airport(CT),
     ok.
 
 %% This is where we spawn 10 planes, setup a control tower and then attempt to land them all
@@ -123,25 +121,26 @@ close_airport(Pid) ->
 %% Synchronous call
 permission_to_start(Pid, Plane = #plane{}) ->
     gen_server:call(Pid,{permission_to_start, Plane}).
+
 %% Synchronous call
 permission_to_land(Pid, Plane = #plane{}) ->
     gen_server:call(Pid, {permission_to_land, Plane}).
 
 on_the_ground(Pid, Plane = #plane{}) ->
-    io:format("ABBASDA"),
     gen_server:call(Pid, {on_the_ground, Plane}).
+
 
 %% Asynchronous call
 land_plane(Pid, Plane = #plane{}, LandingStrip = #landing_strip{}) ->
     gen_server:call(Pid, {land_plane, Plane, LandingStrip}).
 
-%% Asynchronous call
-takeoff(Pid, Plane = #plane{}, LandingStrip = #landing_strip{}) ->
-    gen_server:call(Pid, {takeoff, Plane, LandingStrip}).
-
 %%%%% Gen server callbacks %%%%%
 
 init([]) -> {ok, #{}}. %% no treatment of info here!
+
+%% Asynchronous call
+takeoff(Pid, Plane = #plane{}, LandingStrip = #landing_strip{}) ->
+    gen_server:call(Pid, {takeoff, Plane, LandingStrip}).
 
 %% Unexpected message
 handle_info(Msg, LandingStrips) ->
@@ -191,6 +190,8 @@ handle_cast({make_takeoff, #plane{flight_number = FlightNumber}, LS = #landing_s
 
     {noreply,maps:put(LSid, LandingStripFreed, LandingStrips)}.
 
+
+
 %% Approach the runway
 handle_call({land_plane, Plane, LS}, From, LandingStrips) ->
     %% Instructions %%
@@ -213,6 +214,7 @@ handle_call({takeoff, Plane, LS}, From, LandingStrips) ->
     gen_server:cast(self(), {make_takeoff, Plane, LS, From}),
 
     {reply, ok, LandingStrips};
+
 
 %% Open a new landing strip, available for planes to land on
 handle_call(open_landing_strip, _From, LandingStrips) ->
