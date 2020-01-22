@@ -17,27 +17,28 @@ update(Tower, Planes, Lanes) ->
     NewPlanes = update_plane_list(Planes, Tower, SpawnRate * SleepSeconds),
     {NewestPlanes, NewLanes} = process_input(NewPlanes, Lanes, Tower),
 
-    ok = land_planes(Planes),
+    simulate_planes(Planes),
 
     repaint(NewestPlanes, NewLanes),
     timer:sleep(round(1000 * SleepSeconds)),
     update(Tower, NewestPlanes, NewLanes).
 
-land_planes([]) -> ok;
-land_planes([PlaneWrapper | Tail]) ->
+simulate_planes([]) -> ok;
+simulate_planes([PlaneWrapper | Tail]) ->
     % Get the planes to land
     {Pid, _} = PlaneWrapper,
     case plane:get_state(Pid) of
         prepare_for_landing ->
             %% if we got permission to land -> land the plane
-            timer:sleep(5000),
-            plane:land(Pid),
-            land_planes(Tail);
+            plane:land(Pid);
         in_air ->
-            plane:permission_to_land(Pid),
-            timer:sleep(5000),
-            land_planes(Tail)
-    end.
+            plane:permission_to_land(Pid);
+        on_the_ground ->
+            plane:permission_to_start(Pid);
+        prepare_for_takeoff ->
+            plane:fly(Pid)
+    end,
+    simulate_planes(Tail).
 
 update_plane_list(Planes, Tower, SpawnProbability) ->
     Rand = random:uniform(),
@@ -71,7 +72,6 @@ repaint(Planes, Lanes) ->
     PlaneStrings = lists:map(fun(PlaneWrapper) ->
         {_, Plane} = PlaneWrapper,
         FlightNumber = Plane#plane.flight_number,
-        log(FlightNumber),
         FlightNumber end,
         Planes
     ),
