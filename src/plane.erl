@@ -109,6 +109,8 @@ prepare_for_landing(land, Plane = #plane{landing_strip = LandingStrip, control_t
 
 on_the_ground(grounded, Plane) ->
   {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
+on_the_ground(permission_to_land, Plane) ->
+  {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
 on_the_ground(other, Plane) ->
   {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
 

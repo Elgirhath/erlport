@@ -78,6 +78,8 @@ test_planes() ->
     io:format("~n -- planes: ~p~n", [Planes]),
 
     ok = land_planes(Planes),
+    timer:sleep(1000),
+    ok = takeoff_planes(Planes),
 
     timer:sleep(1000),
     control_tower:close_airport(CT),
@@ -99,6 +101,21 @@ land_planes([Plane1 | Tail]) ->
         in_air ->
             %% no permission to land yet -> try again later
             land_planes(Tail ++ [Plane1])
+    end.
+%% ----------
+
+takeoff_planes([]) -> ok;
+takeoff_planes([Plane1 | Tail]) ->
+    % Get the planes to land
+    ?PLANE_MODULE:permission_to_start(Plane1),
+    case ?PLANE_MODULE:get_state(Plane1) of
+        prepare_for_takeoff ->
+            %% if we got permission to land -> land the plane
+            ?PLANE_MODULE:fly(Plane1),
+            takeoff_planes(Tail);
+        on_the_ground ->
+            %% no permission to land yet -> try again later
+            takeoff_planes(Tail ++ [Plane1])
     end.
 %% ----------
 
