@@ -130,7 +130,7 @@ open_landing_strip(Pid) ->
 
 %% Asynchronous call
 close_landing_strip(Pid, LandingStrip = #landing_strip{}) ->
-    gen_server:cast(Pid, {close_landing_strip, LandingStrip}).
+    gen_server:call(Pid, {close_landing_strip, LandingStrip}).
 
 %% Synchronous call
 close_airport(Pid) ->
@@ -163,12 +163,6 @@ takeoff(Pid, Plane = #plane{}, LandingStrip = #landing_strip{}) ->
 handle_info(Msg, LandingStrips) ->
     io:format("[TOWER] Unexpected message: ~p~n",[Msg]),
     {noreply, LandingStrips}.
-
-%% Close landing strip
-handle_cast({close_landing_strip, LS}, LandingStrips) ->
-
-    LS0 = maps:get(LS#landing_strip.id, LandingStrips, null),
-    can_close_landing_strip(LS0);
 
 %% Landing a plane
 %%
@@ -238,6 +232,12 @@ handle_call(open_landing_strip, _From, LandingStrips) ->
     NewLS = create_landing_strip(),
     io:format("[TOWER] Opening new landing strip ~p~n", [NewLS]),
     {reply, NewLS, maps:put(NewLS#landing_strip.id, NewLS, LandingStrips)};
+
+handle_call({close_landing_strip, LS}, _From, LandingStrips) ->
+    io:format("[TOWER] Closing landing strip ~p~n", [LS]),
+    LS0 = maps:get(LS#landing_strip.id, LandingStrips, null),
+    can_close_landing_strip(LS0),
+    {reply, LS, maps:remove(LS#landing_strip.id, LandingStrips)};
 
 %% Check if the plane can land, look for free landing strips
 %% Instructions %%

@@ -59,13 +59,27 @@ process_commands([Command], Planes, Lanes, Tower) ->
     case Command of
         "ols" ->
             {Planes, Lanes ++ [control_tower:open_landing_strip(Tower)]};
+        "cls" ->
+            if
+                length(Lanes) =< 0 ->
+                    {Planes, Lanes};
+                true ->
+                    {NewLanes, [OldLane]} = lists:split(length(Lanes) - 1, Lanes),
+                    control_tower:close_landing_strip(Tower, OldLane),
+                    {Planes, NewLanes}
+            end;
         "adp" ->
             {Planes ++ [plane:start_and_get_wrapper(Tower)], Lanes};
         "rmp" ->
-            {NewPlanes, OldPlane} = lists:split(length(Planes) - 1, Planes),
-            % {OldPlanePid, OldPlaneObj} = OldPlane,
-            % plane:terminate(normal, plane:get_state(OldPlane), OldPlaneObj),
-            NewPlanes;
+            if
+                length(Planes) =< 0 ->
+                    {Planes, Lanes};
+                true ->
+                    {NewPlanes, [OldPlane]} = lists:split(length(Planes) - 1, Planes),
+                    % {OldPlanePid, OldPlaneObj} = OldPlane,
+                    % plane:terminate(normal, plane:get_state(OldPlane), OldPlaneObj),
+                    {NewPlanes, Lanes}
+            end;
         _Else ->
             {Planes, Lanes}
     end;
@@ -92,18 +106,12 @@ repaint(Planes, Lanes) ->
         integer_to_list(Id) end,
         Lanes
     ),
-    LaneStateStrings = lists:map(fun(Lane) ->
-        {_, _, Free} = Lane,
-        atom_to_list(Free) end,
-        Lanes
-    ),
     PlaneColumn = ["Planes"] ++ PlaneStrings,
     PlaneStateColumn = ["Plane state"] ++ PlaneStateStrings,
-    LaneColumn = ["Lanes"] ++ LaneStrings,
-    LaneStateColumn = ["Lane empty"] ++ LaneStateStrings,
+    LaneColumn = ["All Lanes"] ++ LaneStrings,
     
     clear_console(),
-    print_table({[PlaneColumn, PlaneStateColumn, LaneColumn, LaneStateColumn], 20}).
+    print_table({[PlaneColumn, PlaneStateColumn, LaneColumn], 20}).
 
 clear_console() ->
     io:format("\e[H\e[J").
@@ -138,6 +146,7 @@ get_command_dict() ->
     % {Name, code}
     [
         {"Open landing strip", "ols"},
+        {"Close landing strip", "cls"},
         {"Add plane", "adp"},
         {"Remove plane", "rmp"}
     ].
