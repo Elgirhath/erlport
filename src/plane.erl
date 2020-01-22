@@ -4,7 +4,6 @@
 % states
 -export([
          start/1,
-         start_and_get/1,
          start_link/1,
          permission_to_land/1,
          permission_to_start/1,
@@ -16,26 +15,17 @@
          on_the_ground/2,
          rest/1,
          get_state/1,
-         generate_flight_number/0,
-         create_plane/1
+         generate_flight_number/0
         ]).
 % callbacks
 -export([ init/1, handle_event/3, handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
--include_lib("../include/airport.hrl").
+-include_lib("include/airport.hrl").
 
 % Start / Create planes
 start(ControlTowerPid) ->
     Plane = create_plane(ControlTowerPid),
-    gen_fsm:start(?MODULE, [Plane], []);
-
-start(Plane) ->
-  gen_fsm:start(?MODULE, [Plane], []).
-
-start_and_get(ControlTowerPid) ->
-    Plane = create_plane(ControlTowerPid),
-    {ok, Pid} = gen_fsm:start(?MODULE, [Plane], []),
-    {Pid, Plane}.
+    gen_fsm:start(?MODULE, [Plane], []).
 
 start_link(ControlTowerPid) ->
     Plane = create_plane(ControlTowerPid),
@@ -52,6 +42,7 @@ land(PlanePid) ->
 
 fly(PlanePid) ->
   gen_fsm:send_event(PlanePid,fly).
+
 
 rest(PlanePid) ->
     gen_fsm:send_event(PlanePid, grounded).
@@ -70,11 +61,6 @@ init([Plane]) ->
     %% Code to fill in %%
     {ok, in_air, Plane}.
     %% ------------ %%
-in_air(grounded, Plane) ->
-  {next_state, in_air, Plane#plane{landing_strip = 0}};
-
-in_air(fly, Plane) ->
-  {next_state, in_air, Plane#plane{landing_strip = 0}};
 
 in_air(permission_to_land, Plane) ->
     %% Instructions %%
@@ -84,6 +70,7 @@ in_air(permission_to_land, Plane) ->
     %%  - if we did not get the permission -> stay in_air
     %% ------------ %%
     %%
+    %% Code to fill in %%
     CT = Plane#plane.control_tower_pid,
     Result = control_tower:permission_to_land(CT, Plane),
     io:format("[PLANE] Plane ~s asks tower ~p for permission to land. Got response ~p ~n", [Plane#plane.flight_number, CT, Result]),
@@ -98,12 +85,23 @@ in_air(permission_to_land, Plane) ->
     end;
     %% ------------ %%
 
+in_air(grounded, Plane) ->
+  {next_state, in_air, Plane};
+
+in_air(fly, Plane) ->
+  {next_state, in_air, Plane};
+
 % Redirect all unexpected calls to in_air events
 in_air(Event, Data) ->
     unexpected(Event, in_air),
     {next_state, in_air, Data}.
 
+prepare_for_landing(land, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
+    ok = control_tower:land_plane(CT, Plane, LandingStrip),
+    {next_state, on_the_ground, Plane}.
 
+on_the_ground(grounded, Plane) ->
+  {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
 on_the_ground(other, Plane) ->
   {next_state, on_the_ground, Plane#plane{landing_strip = 0}};
 
@@ -121,13 +119,29 @@ on_the_ground(permission_to_start, Plane) ->
       {next_state, prepare_for_takeoff, Plane#plane{landing_strip = LandingStrip}}
   end.
 
-prepare_for_landing(land, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
-    ok = control_tower:land_plane(CT, Plane, LandingStrip),
-    {next_state, on_the_ground, Plane}.
-
 prepare_for_takeoff(fly, Plane = #plane{landing_strip = LandingStrip, control_tower_pid = CT}) ->
   ok = control_tower:takeoff(CT,Plane,LandingStrip),
   {next_state, in_air, Plane}.
+
+    %% Instructions %%
+    %%
+    %%  - Call the control tower to land the plane on the assigned landing strip
+    %%  - Transition to state landed when finished
+    %% ------------ %%
+    %%
+    %% Code to fill in %%
+
+    %% ------------ %%
+
+%% Instructions %%
+%%
+%%  - Once the plane landed, we just allow it to terminate with a simple log message
+%% ------------ %%
+%%
+%% Code to fill in %%
+%% terminate(normal, landed, S=#plane{}) ->
+%% ....
+%% ------------ %%
 
 terminate(normal, landed, Plane) ->
     io:format("[Plane] ~p finished up their shift, resting in the hangar~n", [Plane]),
