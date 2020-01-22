@@ -4,6 +4,7 @@
 % states
 -export([
          start/1,
+         start_and_get_wrapper/1,
          start_link/1,
          permission_to_land/1,
          permission_to_start/1,
@@ -26,6 +27,12 @@
 start(ControlTowerPid) ->
     Plane = create_plane(ControlTowerPid),
     gen_fsm:start(?MODULE, [Plane], []).
+
+start_and_get_wrapper(ControlTowerPid) ->
+    Plane = create_plane(ControlTowerPid),
+    {ok, Pid} = gen_fsm:start(?MODULE, [Plane], []),
+    {Pid, Plane}.
+
 
 start_link(ControlTowerPid) ->
     Plane = create_plane(ControlTowerPid),

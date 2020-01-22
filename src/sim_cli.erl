@@ -44,7 +44,7 @@ update_plane_list(Planes, Tower, SpawnProbability) ->
     Rand = random:uniform(),
     if 
         Rand < SpawnProbability ->
-            Plane = plane:start_and_get(Tower),
+            Plane = plane:start_and_get_wrapper(Tower),
             Planes ++ [Plane];
         true ->
             Planes
