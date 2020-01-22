@@ -14,8 +14,8 @@ update(Tower, Planes, Lanes) ->
     SpawnRate = 0.5, % Planes per second
     SleepSeconds = 0.5,
 
-    NewPlanes = update_plane_list(Planes, Tower, SpawnRate * SleepSeconds),
-    {NewestPlanes, NewLanes} = process_input(NewPlanes, Lanes, Tower),
+    % NewPlanes = update_plane_list(Planes, Tower, SpawnRate * SleepSeconds),
+    {NewestPlanes, NewLanes} = process_input(Planes, Lanes, Tower),
 
     simulate_planes(Planes),
 
@@ -59,6 +59,13 @@ process_commands([Command], Planes, Lanes, Tower) ->
     case Command of
         "ols" ->
             {Planes, Lanes ++ [control_tower:open_landing_strip(Tower)]};
+        "adp" ->
+            {Planes ++ [plane:start_and_get_wrapper(Tower)], Lanes};
+        "rmp" ->
+            {NewPlanes, OldPlane} = lists:split(length(Planes) - 1, Planes),
+            % {OldPlanePid, OldPlaneObj} = OldPlane,
+            % plane:terminate(normal, plane:get_state(OldPlane), OldPlaneObj),
+            NewPlanes;
         _Else ->
             {Planes, Lanes}
     end;
@@ -131,8 +138,8 @@ get_command_dict() ->
     % {Name, code}
     [
         {"Open landing strip", "ols"},
-        {"Show land permission", "slp"},
-        {"Land plane", "lp"}
+        {"Add plane", "adp"},
+        {"Remove plane", "rmp"}
     ].
 
 for( Max, Max, F )  -> [ F(Max) ];
