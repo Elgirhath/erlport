@@ -70,14 +70,6 @@ init([Plane]) ->
     %% ------------ %%
 
 in_air(permission_to_land, Plane) ->
-    %% Instructions %%
-    %%
-    %%  - We need to ask the control tower whether we can land or not while the plane is airborne
-    %%  - if we get the go ahead -> then transition to prepare_for_landing
-    %%  - if we did not get the permission -> stay in_air
-    %% ------------ %%
-    %%
-    %% Code to fill in %%
     CT = Plane#plane.control_tower_pid,
     Result = control_tower:permission_to_land(CT, Plane),
     io:format("[PLANE] Plane ~s asks tower ~p for permission to land. Got response ~p ~n", [Plane#plane.flight_number, CT, Result]),
